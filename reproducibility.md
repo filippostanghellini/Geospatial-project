@@ -27,7 +27,9 @@
 | Context | Weight Type | Parameters |
 |---|---|---|
 | Listing-level analysis | k-Nearest Neighbors | k=8, row-standardized |
+| kNN sensitivity test | k-Nearest Neighbors | k=4, 8, 12, row-standardized |
 | Neighbourhood-level | Queen contiguity | Row-standardized |
+| LISA analysis | k-Nearest Neighbors | k=8, row-standardized, 999 permutations |
 
 ## CBD Reference Point
 
@@ -50,12 +52,13 @@
 2. `scripts/01_verify_spatial_data.py` (verification)
 3. `scripts/02_make_static_map_overview.py` (maps)
 4. `scripts/03_ols_price_analysis.py` (OLS models)
-5. `scripts/04_spatial_autocorr_morans_i.py` (Moran's I)
+5. `scripts/04_spatial_autocorr_morans_i.py` (Moran's I + kNN sensitivity k=4,8,12)
 6. `scripts/05_lm_diagnostic_tests.py` (LM diagnostics)
-7. `scripts/07_spatial_models_sar_sem.py` (SAR/SEM)
-8. `scripts/07b_extract_residuals.py` (residuals)
-9. `scripts/08_prepare_map_layers.py` (map layers)
-10. `scripts/09_compute_spatial_effects.py` (spatial effects)
+7. `scripts/06_lisa_cluster_analysis.py` (LISA cluster maps + Moran scatterplot)
+8. `scripts/07_spatial_models_sar_sem.py` (SAR/SEM)
+9. `scripts/07b_extract_residuals.py` (residuals)
+10. `scripts/08_prepare_map_layers.py` (map layers)
+11. `scripts/09_compute_spatial_effects.py` (spatial effects)
 
 ## Random Seed
 
