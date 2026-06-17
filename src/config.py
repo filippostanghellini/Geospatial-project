@@ -43,6 +43,9 @@ OUTPUT_FILES = {
     "morans_results": TABLES_DIR / "morans_results.csv",
     "lm_diagnostic_tests": TABLES_DIR / "lm_diagnostic_tests.csv",
     "model_comparison": TABLES_DIR / "model_comparison.csv",
+    "spatial_effects": TABLES_DIR / "spatial_effects.csv",
+    "spillover_listings": TABLES_DIR / "spillover_listings.csv",
+    "spillover_neighbourhoods": MAPS_DIR / "spillover_neighbourhoods.geojson",
 }
 
 CRS_WEB = "EPSG:4326"

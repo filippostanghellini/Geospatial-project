@@ -68,7 +68,8 @@ def build_model_df(df, out_path=None, winsorize_q=(0.005, 0.995)):
 def get_y_X(model_df):
     exclude_cols = {'listing_id', 'id', 'latitude', 'longitude', 'price', 'price_numeric',
                     'log_price', 'geometry', 'neighbourhood_cleansed', 'neighbourhood',
-                    'room_type', 'host_is_superhost', 'instant_bookable'}
+                    'room_type', 'host_is_superhost', 'instant_bookable',
+                    'scrape_id', 'host_id'}
     X_cols = [c for c in model_df.columns if c not in exclude_cols and model_df[c].dtype in ['int64', 'float64', 'int32', 'float32', 'int8', 'uint8']]
 
     X_df = model_df[X_cols].copy()
