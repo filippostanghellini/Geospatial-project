@@ -51,9 +51,3 @@ def save_csv(df, filepath):
     filepath.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving CSV: {filepath}")
     df.to_csv(filepath, index=False)
-
-def file_size_mb(filepath):
-    filepath = Path(filepath)
-    if filepath.exists():
-        return filepath.stat().st_size / (1024 * 1024)
-    return 0

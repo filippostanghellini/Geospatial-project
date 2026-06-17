@@ -4,16 +4,15 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import geopandas as gpd
 from libpysal.weights import KNN
 from spreg import GM_Lag, GM_Error
 
-from src.config import OUTPUT_FILES, CRS_METRIC, MAP_SAMPLE_SIZE, RANDOM_SEED
+from src.config import OUTPUT_FILES, CRS_METRIC
 from src.prep import get_y_X
-from src.io import save_csv, save_geojson
+from src.io import save_csv
 
 def main():
     print("=" * 60)
@@ -22,7 +21,6 @@ def main():
 
     model_df = pd.read_parquet(OUTPUT_FILES['model_sample'])
     y, X, X_cols = get_y_X(model_df)
-    n = len(y)
 
     gdf_points = gpd.GeoDataFrame(
         model_df,

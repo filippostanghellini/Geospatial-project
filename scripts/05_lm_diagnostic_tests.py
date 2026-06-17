@@ -25,6 +25,7 @@ def main():
     X_const = sm.add_constant(X)
     model_ols = sm.OLS(y, X_const).fit()
     e = model_ols.resid
+    beta = model_ols.params
     n = len(y)
     k = X_const.shape[1]
 
@@ -44,36 +45,43 @@ def main():
     print(f"Weights: N={w.n}, k=8, nnz={w.sparse.nnz}")
 
     We = W @ e
-    eWe = e.T @ We
-    ee = e.T @ e
+    eWe = float(e.T @ We)
+    Wy = W @ y
+    eWy = float(e.T @ Wy)
+    ee = float(e.T @ e)
     sigma2 = ee / n
 
     XtX_inv = np.linalg.inv(X_const.T @ X_const)
-    WX = W @ X_const
-    WXb = WX - X_const @ (XtX_inv @ (X_const.T @ WX))
 
-    tr_WtW = (W.T @ W).diagonal().sum()
-    tr_W2 = (W @ W).diagonal().sum()
-    T = tr_WtW + tr_W2
+    Xb = X_const @ beta
+    WXb = W @ Xb
+    beta_aux = XtX_inv @ (X_const.T @ WXb)
+    WXb_residuals = WXb - X_const @ beta_aux
+    J = float(WXb_residuals.T @ WXb_residuals / sigma2)
 
-    J = (WXb.T @ WXb) / sigma2
+    T = float((W.T @ W + W @ W.T).diagonal().sum() / 2)
 
-    LM_lag = (eWe / sigma2) ** 2 / T
-    LM_error = (eWe / sigma2) ** 2 / T - (eWe / sigma2) ** 2 / (n * T / (n - k))
+    LM_error = (eWe / sigma2) ** 2 / T
+    LM_lag = (eWy / sigma2) ** 2 / (T + J)
 
-    RLM_lag = LM_lag - LM_error
-    RLM_error = LM_error
+    num_rlm_error = (eWe - (T / (T + J)) * eWy) / sigma2
+    den_rlm_error = max(T - T**2 / (T + J), 1e-10)
+    RLM_error = num_rlm_error ** 2 / den_rlm_error
 
-    p_lm_lag = 1 - stats.chi2.cdf(LM_lag, 1)
+    num_rlm_lag = (eWy - eWe) / sigma2
+    den_rlm_lag = max(J, 1e-10)
+    RLM_lag = num_rlm_lag ** 2 / den_rlm_lag
+
     p_lm_error = 1 - stats.chi2.cdf(LM_error, 1)
-    p_rlm_lag = 1 - stats.chi2.cdf(RLM_lag, 1)
+    p_lm_lag = 1 - stats.chi2.cdf(LM_lag, 1)
     p_rlm_error = 1 - stats.chi2.cdf(RLM_error, 1)
+    p_rlm_lag = 1 - stats.chi2.cdf(RLM_lag, 1)
 
     print("\n--- LM Test Results ---")
-    print(f"  LM-lag:        {LM_lag:10.4f}  p={p_lm_lag:.4e}")
     print(f"  LM-error:      {LM_error:10.4f}  p={p_lm_error:.4e}")
-    print(f"  Robust LM-lag: {RLM_lag:10.4f}  p={p_rlm_lag:.4e}")
+    print(f"  LM-lag:        {LM_lag:10.4f}  p={p_lm_lag:.4e}")
     print(f"  Robust LM-error:{RLM_error:10.4f}  p={p_rlm_error:.4e}")
+    print(f"  Robust LM-lag: {RLM_lag:10.4f}  p={p_rlm_lag:.4e}")
 
     print("\n--- Decision Rule (Anselin 1988) ---")
     if p_rlm_lag < 0.05 and p_rlm_error < 0.05:
@@ -89,9 +97,9 @@ def main():
         print("  Neither robust test significant -> OLS may be adequate")
 
     results = pd.DataFrame({
-        'test': ['LM-lag', 'LM-error', 'Robust LM-lag', 'Robust LM-error'],
-        'statistic': [LM_lag, LM_error, RLM_lag, RLM_error],
-        'p_value': [p_lm_lag, p_lm_error, p_rlm_lag, p_rlm_error],
+        'test': ['LM-error', 'LM-lag', 'Robust LM-error', 'Robust LM-lag'],
+        'statistic': [LM_error, LM_lag, RLM_error, RLM_lag],
+        'p_value': [p_lm_error, p_lm_lag, p_rlm_error, p_rlm_lag],
     })
     save_csv(results, TABLES_DIR / 'lm_diagnostic_tests.csv')
 

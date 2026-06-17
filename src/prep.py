@@ -1,22 +1,9 @@
 import pandas as pd
 import numpy as np
 import logging
-from .config import CBD_LAT, CBD_LON, CRS_WEB
+from .config import CBD_LAT, CBD_LON
 
 logger = logging.getLogger(__name__)
-
-def _parse_price_series(s):
-    s = s.astype(str).str.replace('EUR', '', regex=False)
-    s = s.str.replace(',', '.', regex=False)
-    return pd.to_numeric(s, errors='coerce')
-
-def load_listings_processed(path):
-    df = pd.read_parquet(path)
-    if 'listing_id' not in df.columns and 'id' in df.columns:
-        df = df.rename(columns={'id': 'listing_id'})
-    if 'price_numeric' not in df.columns and 'price' in df.columns:
-        df['price_numeric'] = _parse_price_series(df['price'])
-    return df
 
 def _haversine(lat1, lon1, lat2, lon2):
     R = 6371.0

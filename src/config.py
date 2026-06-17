@@ -1,7 +1,4 @@
 from pathlib import Path
-import logging
-
-logger = logging.getLogger(__name__)
 
 def get_project_root():
     current = Path(__file__).resolve().parent
@@ -28,27 +25,24 @@ INPUT_FILES = {
     "listings_detailed": ORIGINAL_DIR / "listings.csv",
     "calendar_detailed": ORIGINAL_DIR / "calendar.csv",
     "reviews_detailed": ORIGINAL_DIR / "reviews.csv",
-    "listings_summary": ORIGINAL_DIR / "listings_summary.csv",
-    "reviews_summary": ORIGINAL_DIR / "reviews_summary.csv",
-    "neighbourhoods_csv": ORIGINAL_DIR / "neighbourhoods.csv",
     "neighbourhoods_geojson": ORIGINAL_DIR / "neighbourhoods.geojson",
 }
 
 OUTPUT_FILES = {
     "listings_clean": PROCESSED_DIR / "listings_clean.parquet",
     "calendar_clean": PROCESSED_DIR / "calendar_clean.parquet",
-    "reviews_clean": PROCESSED_DIR / "reviews_clean.parquet",
     "reviews_listing_features": PROCESSED_DIR / "reviews_listing_features.parquet",
-    "neighbourhoods_clean": PROCESSED_DIR / "neighbourhoods_clean.parquet",
     "neighbourhoods_enriched": PROCESSED_DIR / "neighbourhoods_enriched.parquet",
     "neighbourhoods_enriched_geojson": PROCESSED_DIR / "neighbourhoods_enriched.geojson",
-    "calendar_enriched": PROCESSED_DIR / "calendar_enriched.parquet",
-    "calendar_enriched_with_neighbourhoods": PROCESSED_DIR / "calendar_enriched_with_neighbourhoods.parquet",
     "model_sample": PROCESSED_DIR / "model_sample.parquet",
     "listings_points_enriched_sample": PROCESSED_DIR / "listings_points_enriched_sample.geojson",
     "map_points_sample": PROCESSED_DIR / "map_points_sample.geojson",
     "map_grid_cells": PROCESSED_DIR / "map_grid_cells.geojson",
     "residuals_for_map": TABLES_DIR / "residuals_for_map.csv",
+    "ols_coefficients": TABLES_DIR / "ols_model_b_coefficients.csv",
+    "morans_results": TABLES_DIR / "morans_results.csv",
+    "lm_diagnostic_tests": TABLES_DIR / "lm_diagnostic_tests.csv",
+    "model_comparison": TABLES_DIR / "model_comparison.csv",
 }
 
 CRS_WEB = "EPSG:4326"

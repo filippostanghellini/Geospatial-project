@@ -4,13 +4,9 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-from matplotlib.lines import Line2D
 import contextily as ctx
 
 from src.config import OUTPUT_FILES, FIGURES_DIR, CITY_NAME, CBD_LAT, CBD_LON, CRS_WEB
@@ -65,10 +61,11 @@ def main():
     except Exception as e:
         print(f"  Could not add basemap: {e}")
 
-    plt.savefig(FIGURES_DIR / f'fig_{CITY_NAME.lower()}_overview_price.png', dpi=150, bbox_inches='tight')
+    output_path = FIGURES_DIR / f'fig_{CITY_NAME.lower()}_overview_price.png'
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.show()
 
-    print(f"Map saved to {FIGURES_DIR / f'fig_{CITY_NAME.lower()}_overview_price.png'}")
+    print(f"Map saved to {output_path}")
     print("=" * 60)
 
 if __name__ == "__main__":
