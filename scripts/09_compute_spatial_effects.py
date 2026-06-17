@@ -95,7 +95,7 @@ def wald_test_sdm_restrictions(model_sdm, k, alpha=0.05):
     H0_A: θ = 0   → SDM reduces to SAR
     H0_B: θ + ρ·β = 0  → SDM reduces to SEM (common factor restriction)
 
-    用 the VC matrix from GM_Combo (vm=True required).
+    Uses the VC matrix from GM_Combo (vm=True required).
     Returns dict with test statistics, p-values, and decision.
     """
     rho = float(model_sdm.rho.flatten()[0])
