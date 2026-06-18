@@ -100,8 +100,15 @@ def wald_test_sdm_restrictions(model_sdm, k, alpha=0.05):
     """
     rho = float(model_sdm.rho.flatten()[0])
     betas_all = model_sdm.betas.flatten()
-    betas_X = betas_all[:k]
-    betas_WX = betas_all[k:2*k]
+    n_total = len(betas_all)
+    if n_total == 2 * k + 2:
+        w_offset = 1
+    elif n_total == 2 * k + 3:
+        w_offset = 2
+    else:
+        w_offset = max(0, n_total - 2 * k - 1)
+    betas_X = betas_all[w_offset:w_offset + k]
+    betas_WX = betas_all[w_offset + k:w_offset + 2 * k]
 
     if not hasattr(model_sdm, 'vm') or model_sdm.vm is None:
         print("  Wald test NOT available — no VC matrix. Use vm=True in GM_Combo.")
@@ -115,7 +122,7 @@ def wald_test_sdm_restrictions(model_sdm, k, alpha=0.05):
 
     # ---- H0_A: θ = 0  (SDM → SAR) ----
     theta = betas_WX
-    V_theta = V_usable[k:2*k, k:2*k]
+    V_theta = V_usable[w_offset + k:w_offset + 2*k, w_offset + k:w_offset + 2*k]
 
     try:
         V_theta_inv = np.linalg.inv(V_theta)
@@ -135,7 +142,7 @@ def wald_test_sdm_restrictions(model_sdm, k, alpha=0.05):
     # ---- H0_B: θ + ρ·β = 0  (SDM → SEM) ----
     c = betas_WX + rho * betas_X
     J = np.hstack([rho * np.eye(k), np.eye(k)])  # Jacobian d(θ+ρβ)/d(β,θ)
-    V_block = V_usable[:2*k, :2*k]
+    V_block = V_usable[w_offset:w_offset + 2*k, w_offset:w_offset + 2*k]
     V_restriction = J @ V_block @ J.T
 
     try:
@@ -220,7 +227,7 @@ def main():
 
     sar_betas = model_sar.betas.flatten()
     if len(sar_betas) > len(X_cols):
-        sar_betas = sar_betas[:len(X_cols)]
+        sar_betas = sar_betas[1:len(X_cols)+1]
 
     sar_impacts, sar_dir, sar_ind, sar_tot = compute_sar_impacts(
         W, rho_sar, sar_betas, X_cols
@@ -237,8 +244,15 @@ def main():
     rho_sdm = float(model_sdm.rho.flatten()[0])
     k = len(X_cols)
     betas_all = model_sdm.betas.flatten()
-    betas_X = betas_all[:k]
-    betas_WX = betas_all[k:2*k]
+    n_total = len(betas_all)
+    if n_total == 2 * k + 2:
+        sdm_offset = 1
+    elif n_total == 2 * k + 3:
+        sdm_offset = 2
+    else:
+        sdm_offset = max(0, n_total - 2 * k - 1)
+    betas_X = betas_all[sdm_offset:sdm_offset + k]
+    betas_WX = betas_all[sdm_offset + k:sdm_offset + 2 * k]
 
     print(f"  ρ = {rho_sdm:.4f}   Pseudo-R² = {model_sdm.pr2:.4f}")
     print(f"  betas_X (n={len(betas_X)}), betas_WX (n={len(betas_WX)})")
@@ -293,6 +307,9 @@ def main():
     Xb_sdm = X @ betas_X
     Wy = W @ y
 
+    sar_intercept = float(model_sar.betas.flatten()[0])
+    sdm_intercept = float(model_sdm.betas.flatten()[0])
+
     spillover = pd.DataFrame({
         'listing_id': model_df['listing_id'].values,
         'neighbourhood': model_df.get('neighbourhood_cleansed', pd.Series(['']*len(y))).values,
@@ -310,11 +327,11 @@ def main():
 
     spillover['sar_spillover_share'] = (
         np.abs(spillover['sar_rho_Wy']) /
-        (np.abs(spillover['sar_own']) + np.abs(spillover['sar_rho_Wy']) + 1e-6)
+        (np.abs(sar_intercept + spillover['sar_own']) + np.abs(spillover['sar_rho_Wy']) + 1e-6)
     )
     spillover['sdm_spillover_share'] = (
         np.abs(spillover['sdm_rho_Wy']) /
-        (np.abs(spillover['sdm_own']) + np.abs(spillover['sdm_WX_contrib']) + np.abs(spillover['sdm_rho_Wy']) + 1e-6)
+        (np.abs(sdm_intercept + spillover['sdm_own']) + np.abs(spillover['sdm_WX_contrib']) + np.abs(spillover['sdm_rho_Wy']) + 1e-6)
     )
 
     save_csv(spillover, TABLES_DIR / 'spillover_listings.csv')

@@ -316,7 +316,7 @@ elif view_mode == "Spillover Analysis":
             else:               return '#005a32'
 
         for _, row in spillover_neigh.iterrows():
-            share = row.get('sdm_share', row.get('sar_share', None))
+            share = row.get('sar_share', row.get('sdm_share', None))
             if share is None or pd.isna(share):
                 continue
             color = spillover_color(share)
@@ -331,8 +331,8 @@ elif view_mode == "Spillover Analysis":
                 tooltip=folium.Tooltip(
                     f"<b>{neigh_name}</b><br>"
                     f"Spillover share: {pct:.1f}%<br>"
-                    f"Listings: {int(row.get('listing_count', 0))}<br>"
-                    f"Mean log price: {row.get('mean_price_y', row.get('mean_price', 0)):.3f}"
+                    f"Listings: {int(row.get('listing_count_y', row.get('listing_count_x', 0)))}<br>"
+                    f"Mean log price: {row.get('mean_price_y', row.get('mean_price_x', 0)):.3f}"
                 )
             ).add_to(m)
 
@@ -345,7 +345,7 @@ elif view_mode == "Spillover Analysis":
     st_folium(m, width=None, height=600)
 
     if spillover_neigh is not None:
-        share_col = 'sdm_share' if 'sdm_share' in spillover_neigh.columns else 'sar_share'
+        share_col = 'sar_share' if 'sar_share' in spillover_neigh.columns else 'sdm_share'
         shares = spillover_neigh[share_col].dropna()
         st.subheader("Spillover Statistics by Neighbourhood")
         c1, c2, c3, c4 = st.columns(4)

@@ -56,6 +56,41 @@ def build_model_df(df, out_path=None, winsorize_q=(0.005, 0.995)):
         neigh_dummies = pd.get_dummies(df['neighbourhood_cleansed'], prefix='neigh', drop_first=True, dtype=int)
         df = pd.concat([df, neigh_dummies], axis=1)
 
+    logger.info("Handling NaN in numeric features (impute, don't drop)")
+    skip_cols = {'log_price', 'accommodates', 'minimum_nights', 'listing_id',
+                 'id', 'latitude', 'longitude', 'price', 'price_numeric'}
+
+    review_sub_scores = [c for c in df.columns
+                         if c.startswith('review_scores_') and c != 'review_scores_rating']
+    if review_sub_scores:
+        existing = [c for c in review_sub_scores if c in df.columns]
+        df = df.drop(columns=existing)
+        logger.info(f"  Dropped {len(existing)} review sub-scores (collinear, keeping only review_scores_rating)")
+
+    if 'review_scores_rating' in df.columns and 'has_reviews' not in df.columns:
+        df['has_reviews'] = df['review_scores_rating'].notna().astype(int)
+    if 'reviews_per_month' in df.columns and 'has_reviews' not in df.columns:
+        df['has_reviews'] = df['reviews_per_month'].notna().astype(int)
+
+    numeric_cols = df.select_dtypes(include=['int64', 'float64', 'int32', 'float32', 'uint8', 'int8']).columns
+    for col in numeric_cols:
+        if col in skip_cols:
+            continue
+        nan_count = df[col].isna().sum()
+        if nan_count == 0:
+            continue
+        nan_pct = nan_count / len(df)
+        if nan_pct >= 0.999:
+            df = df.drop(columns=[col])
+            logger.info(f"  Dropped {col} ({nan_count} NaN, {nan_pct:.0%} — no information)")
+        elif nan_pct >= 0.10:
+            df[col] = df[col].fillna(0)
+            logger.info(f"  Imputed {col}: {nan_count} NaN ({nan_pct:.1%}) → 0")
+        else:
+            fill_val = df[col].median()
+            df[col] = df[col].fillna(fill_val)
+            logger.info(f"  Imputed {col}: {nan_count} NaN ({nan_pct:.1%}) → median={fill_val:.2f}")
+
     df = df.dropna(subset=['log_price', 'accommodates', 'minimum_nights'])
     logger.info(f"Final model dataset: {len(df)} rows")
 
@@ -74,15 +109,14 @@ def get_y_X(model_df):
 
     X_df = model_df[X_cols].copy()
     X_df = X_df.replace([np.inf, -np.inf], np.nan)
+
     cols_with_nan = X_df.columns[X_df.isna().any()].tolist()
     if cols_with_nan:
-        logger.warning(f"Dropping columns with NaN/inf: {cols_with_nan}")
-        X_df = X_df.drop(columns=cols_with_nan)
-        X_cols = [c for c in X_cols if c not in cols_with_nan]
+        logger.error(f"UNEXPECTED NaN in X after build_model_df imputation: {cols_with_nan}")
 
     mask = X_df.notna().all(axis=1)
     if mask.sum() < len(model_df):
-        logger.info(f"Dropping {len(model_df) - mask.sum()} rows with NaN in model features")
+        logger.info(f"Dropping {len(model_df) - mask.sum()} rows with residual NaN")
         model_df = model_df[mask].copy()
         X_df = X_df[mask].copy()
 

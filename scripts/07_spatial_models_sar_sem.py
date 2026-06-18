@@ -61,7 +61,7 @@ def main():
 
     print("\n--- SEM Model (Spatial Error, GMM) ---")
     try:
-        model_sem = GM_Error(y, X, w=w, name_y='log_price', name_x=X_cols, robust='white')
+        model_sem = GM_Error(y, X, w=w, name_y='log_price', name_x=X_cols)
         print(f"  Pseudo R-squared: {model_sem.pr2:.4f}")
         lam_val = getattr(model_sem, 'lam', getattr(model_sem, 'lambda_', None))
         if lam_val is not None:
