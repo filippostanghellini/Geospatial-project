@@ -6,10 +6,9 @@ sys.path.insert(0, str(project_root))
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 import geopandas as gpd
 from libpysal.weights import KNN
-from scipy import stats
+from spreg import OLS as SpregOLS
 
 from src.config import OUTPUT_FILES, TABLES_DIR, CRS_METRIC
 from src.prep import get_y_X
@@ -22,12 +21,8 @@ def main():
 
     model_df = pd.read_parquet(OUTPUT_FILES['model_sample'])
     y, X, X_cols = get_y_X(model_df)
-    X_const = sm.add_constant(X)
-    model_ols = sm.OLS(y, X_const).fit(cov_type='HC1')
-    e = model_ols.resid
-    beta = model_ols.params
     n = len(y)
-    k = X_const.shape[1]
+    k = X.shape[1]
 
     print(f"\nModel: N={n}, K={k}")
 
@@ -40,48 +35,27 @@ def main():
 
     w = KNN.from_dataframe(gdf_proj, k=8)
     w.transform = 'r'
-    W = w.sparse
 
     print(f"Weights: N={w.n}, k=8, nnz={w.sparse.nnz}")
 
-    We = W @ e
-    eWe = float(e.T @ We)
-    Wy = W @ y
-    eWy = float(e.T @ Wy)
-    ee = float(e.T @ e)
-    sigma2 = ee / n
+    # spreg.OLS computes LM diagnostics using the correct ABFY (1996) trace
+    # T = tr((W'+W)W) = tr(W'W) + tr(W^2), which the previous manual
+    # implementation omitted (it used only tr(W'W)), inflating 3/4 statistics
+    # and flipping the SAR-vs-SEM selection.
+    # spreg exposes the diagnostics as (statistic, p-value) tuples.
+    model_spreg = SpregOLS(y, X, w=w, spat_diag=True, moran=True,
+                           name_y='log_price', name_x=X_cols)
 
-    XtX_inv = np.linalg.inv(X_const.T @ X_const)
+    LM_error, p_lm_error = float(model_spreg.lm_error[0]), float(model_spreg.lm_error[1])
+    LM_lag, p_lm_lag = float(model_spreg.lm_lag[0]), float(model_spreg.lm_lag[1])
+    RLM_error, p_rlm_error = float(model_spreg.rlm_error[0]), float(model_spreg.rlm_error[1])
+    RLM_lag, p_rlm_lag = float(model_spreg.rlm_lag[0]), float(model_spreg.rlm_lag[1])
 
-    Xb = X_const @ beta
-    WXb = W @ Xb
-    beta_aux = XtX_inv @ (X_const.T @ WXb)
-    WXb_residuals = WXb - X_const @ beta_aux
-    J = float(WXb_residuals.T @ WXb_residuals / sigma2)
-
-    T = float((W.T @ W + W @ W.T).diagonal().sum() / 2)
-
-    LM_error = (eWe / sigma2) ** 2 / T
-    LM_lag = (eWy / sigma2) ** 2 / (T + J)
-
-    num_rlm_error = (eWe - (T / (T + J)) * eWy) / sigma2
-    den_rlm_error = max(T - T**2 / (T + J), 1e-10)
-    RLM_error = num_rlm_error ** 2 / den_rlm_error
-
-    num_rlm_lag = (eWy - eWe) / sigma2
-    den_rlm_lag = max(J, 1e-10)
-    RLM_lag = num_rlm_lag ** 2 / den_rlm_lag
-
-    p_lm_error = 1 - stats.chi2.cdf(LM_error, 1)
-    p_lm_lag = 1 - stats.chi2.cdf(LM_lag, 1)
-    p_rlm_error = 1 - stats.chi2.cdf(RLM_error, 1)
-    p_rlm_lag = 1 - stats.chi2.cdf(RLM_lag, 1)
-
-    print("\n--- LM Test Results ---")
-    print(f"  LM-error:      {LM_error:10.4f}  p={p_lm_error:.4e}")
-    print(f"  LM-lag:        {LM_lag:10.4f}  p={p_lm_lag:.4e}")
+    print("\n--- LM Test Results (spreg, correct trace T = tr(W'W) + tr(W^2)) ---")
+    print(f"  LM-error:       {LM_error:10.4f}  p={p_lm_error:.4e}")
+    print(f"  LM-lag:         {LM_lag:10.4f}  p={p_lm_lag:.4e}")
     print(f"  Robust LM-error:{RLM_error:10.4f}  p={p_rlm_error:.4e}")
-    print(f"  Robust LM-lag: {RLM_lag:10.4f}  p={p_rlm_lag:.4e}")
+    print(f"  Robust LM-lag:  {RLM_lag:10.4f}  p={p_rlm_lag:.4e}")
 
     print("\n--- Decision Rule (Anselin 1988) ---")
     if p_rlm_lag < 0.05 and p_rlm_error < 0.05:

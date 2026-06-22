@@ -91,6 +91,8 @@ if model_comp is not None:
         elif row['model'] == 'SAR':
             sar_r2 = row['r_squared']
             sar_moran = row['moran_I']
+        elif row['model'] == 'SDM' and 'r_squared' in row and pd.notna(row.get('r_squared')):
+            sdm_r2 = row['r_squared']
 
 # ---------- sidebar ----------
 
@@ -130,7 +132,7 @@ if view_mode == "Residual Map":
     else:
         cbd_range = None
     st.sidebar.header("Residuals")
-    residual_type = st.sidebar.radio("Show residuals from", ["OLS", "SAR", "Comparison (OLS-SAR)"], index=0)
+    residual_type = st.sidebar.radio("Show residuals from", ["OLS", "SAR", "SEM", "Comparison (OLS-SAR)"], index=0)
     highlight_threshold = st.sidebar.slider("Highlight threshold (|residual|)", 0.0, 2.0, 0.5, 0.1)
     show_points = st.sidebar.checkbox("Show individual listings", value=True)
     show_grid = st.sidebar.checkbox("Show neighborhood aggregates", value=True)
@@ -163,6 +165,8 @@ if view_mode == "Residual Map":
         resid_col = 'ols_residual'
     elif residual_type == "SAR":
         resid_col = 'sar_residual'
+    elif residual_type == "SEM":
+        resid_col = 'sem_residual'
     else:
         filtered['comparison_residual'] = filtered['ols_residual'] - filtered['sar_residual']
         resid_col = 'comparison_residual'
@@ -199,6 +203,8 @@ if view_mode == "Residual Map":
             grid_col = 'mean_ols_residual'
         elif residual_type == "SAR":
             grid_col = 'mean_sar_residual'
+        elif residual_type == "SEM":
+            grid_col = 'mean_sem_residual' if 'mean_sem_residual' in grid_filtered.columns else 'mean_ols_residual'
         else:
             grid_filtered['mean_comparison'] = grid_filtered['mean_ols_residual'] - grid_filtered['mean_sar_residual']
             grid_col = 'mean_comparison'
@@ -247,16 +253,19 @@ if view_mode == "Residual Map":
     st_folium(m, width=None, height=600)
 
     st.subheader("Summary Statistics")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("Mean log(price)", f"{filtered['log_price'].mean():.3f}")
-        st.metric("Price range", f"{filtered['price'].min():.0f} - {filtered['price'].max():.0f} EUR")
-    with c2:
-        st.metric(f"Mean {residual_type} residual", f"{filtered[resid_col].mean():.4f}")
-        st.metric(f"Std {residual_type} residual", f"{filtered[resid_col].std():.4f}")
-    with c3:
-        high_resid = (filtered[resid_col].abs() > 0.5).sum()
-        st.metric("|r| > 0.5", f"{high_resid} ({high_resid/len(filtered)*100:.1f}%)")
+    if len(filtered) == 0:
+        st.warning("No listings match the current filters. Adjust the sidebar filters to see results.")
+    else:
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Mean log(price)", f"{filtered['log_price'].mean():.3f}")
+            st.metric("Price range", f"{filtered['price'].min():.0f} - {filtered['price'].max():.0f} EUR")
+        with c2:
+            st.metric(f"Mean {residual_type} residual", f"{filtered[resid_col].mean():.4f}")
+            st.metric(f"Std {residual_type} residual", f"{filtered[resid_col].std():.4f}")
+        with c3:
+            high_resid = (filtered[resid_col].abs() > 0.5).sum()
+            st.metric("|r| > 0.5", f"{high_resid} ({high_resid/len(filtered)*100:.1f}%)")
 
     st.caption("Color: blue = model overestimates, red = underestimates, gray = good fit")
 
@@ -301,19 +310,39 @@ if view_mode == "Residual Map":
 elif view_mode == "Spillover Analysis":
     m = folium.Map(location=[CBD_LAT, CBD_LON], zoom_start=12, tiles='CartoDB positron')
 
+    # Defaults in case spillover_neigh is None (used by Interpretation section below)
+    shares_all = pd.Series(dtype=float)
+    s_min, s_max = 0.0, 1.0
+
     if spillover_neigh is not None:
+        share_col_map = 'sar_share' if 'sar_share' in spillover_neigh.columns else 'sdm_share'
+        shares_all = spillover_neigh[share_col_map].dropna()
+
+        # Data-driven color bins: the SAR spillover share is nearly constant
+        # (mean ~17.4%, std ~0.6%) because it is mathematically constrained by
+        # the single ρ parameter. Fixed bins (10-30%) made the map appear
+        # uniformly light green. We compute bins from the actual data range
+        # so the map shows meaningful relative variation.
+        if len(shares_all) > 0:
+            s_min = float(shares_all.min())
+            s_max = float(shares_all.max())
+        else:
+            s_min, s_max = 0.0, 1.0
+
+        # 7 color steps from light to dark green, evenly spaced over [s_min, s_max]
+        green_palette = ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45']
+        n_colors = len(green_palette)
+
         def spillover_color(val):
             if val is None or pd.isna(val):
                 return '#e0e0e0'
-            val = max(0, min(1, val))
-            if val < 0.10:      return '#f7fcf5'
-            elif val < 0.15:    return '#e5f5e0'
-            elif val < 0.18:    return '#c7e9c0'
-            elif val < 0.20:    return '#a1d99b'
-            elif val < 0.22:    return '#74c476'
-            elif val < 0.25:    return '#41ab5d'
-            elif val < 0.30:    return '#238b45'
-            else:               return '#005a32'
+            if s_max == s_min:
+                return green_palette[n_colors // 2]
+            # Normalize val to [0, 1] over the actual data range
+            t = (val - s_min) / (s_max - s_min)
+            t = max(0.0, min(1.0, t))
+            idx = min(int(t * n_colors), n_colors - 1)
+            return green_palette[idx]
 
         for _, row in spillover_neigh.iterrows():
             share = row.get('sar_share', row.get('sdm_share', None))
@@ -382,18 +411,30 @@ elif view_mode == "Spillover Analysis":
     | **SAR** | {sar_rho_str} | {sar_r2_str} | All variables share the same indirect/direct ratio ({sar_ratio_str}) |
     | **SDM** | {sdm_rho_str} | {sdm_r2_str} | Each variable has its own unique spillover intensity |
 
-    **Why SDM matters**: In SAR, `bedrooms` and `accommodates` have the same spillover ratio.
-    In SDM, `bedrooms` has a **strong positive** spillover (more bedrooms nearby → higher prices),
-    while `accommodates` has a **negative** spillover (more guests nearby → higher competition → lower prices).
-
-    **Total multipliers**: SAR = {sar_mult_str}, SDM = {sdm_mult_str} (higher ρ in SDM means stronger spatial feedback,
-    but offset by negative WX coefficients).
+    **Total multipliers**: SAR = {sar_mult_str}, SDM = {sdm_mult_str}.
     """)
 
+    st.warning(
+        f"**SDM caveat**: The SDM is estimated on structural variables only (neighbourhood "
+        f"fixed effects dropped to avoid X–WX collinearity). The resulting ρ={sdm_rho_str} is "
+        f"near the unit-root boundary (<1), which inflates the total multiplier to "
+        f"{sdm_mult_str}. This happens because the spatial lag absorbs the omitted "
+        f"neighbourhood heterogeneity. **Total effects from SDM should be interpreted with "
+        f"caution** — the SAR model (with neighbourhood FE, ρ={sar_rho_str}) provides the "
+        f"more reliable and economically plausible impact estimates. The SDM is shown here "
+        f"for completeness and to illustrate why the neighbourhood FE are necessary."
+    )
+
     if effects_df is not None:
-        st.subheader("Top Variable Effects (SDM)")
+        st.subheader("Top Variable Effects (SDM — structural variables only)")
+        st.caption(
+            "⚠️ SDM total effects are inflated by the near-unit-root ρ. "
+            "Direct effects (β) are more reliable than total effects. "
+            "For economically interpretable impacts, refer to the SAR model."
+        )
         key_vars = ['accommodates', 'bathrooms', 'bedrooms', 'beds',
-                    'minimum_nights', 'availability_30', 'number_of_reviews']
+                    'minimum_nights', 'availability_30', 'number_of_reviews',
+                    'dist_cbd_km', 'review_scores_rating', 'has_reviews']
         sdm = effects_df[effects_df['model'] == 'SDM']
         display = sdm[sdm['variable'].isin(key_vars)].copy()
 
@@ -412,16 +453,36 @@ elif view_mode == "Spillover Analysis":
     st.subheader("Interpretation")
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("""
-        **Color Legend (Spillover Map)**
-        - Light green: Low spillover (%) - price mostly from own characteristics
-        - Medium green: Moderate spillover
-        - Dark green: High spillover - price heavily influenced by neighbors
-        """)
+        if len(shares_all) > 0:
+            st.markdown(f"""
+            **Color Legend (Spillover Map)**
+
+            Colors are scaled to the actual data range
+            ({s_min*100:.1f}% – {s_max*100:.1f}%):
+
+            - Light green: lower spillover share (relative to other neighbourhoods)
+            - Medium green: moderate spillover
+            - Dark green: higher spillover share
+
+            **Note:** In the SAR model the spillover share is nearly uniform
+            across neighbourhoods (mean {shares_all.mean()*100:.1f}%, std
+            {shares_all.std()*100:.2f}%). This is expected: the share is driven
+            by a single spatial parameter ρ={sar_rho_str}, so it varies little
+            between areas. The color scale is stretched over the narrow observed
+            range to make relative differences visible.
+            """)
+        else:
+            st.markdown("""
+            **Color Legend (Spillover Map)**
+            - Light green: Low spillover
+            - Medium green: Moderate spillover
+            - Dark green: High spillover
+            """)
     with col2:
         st.markdown("""
         **Why this matters**
-        - High-spillover areas are more sensitive to neighborhood changes
-        - A new amenity or luxury listing in these areas has amplified effects
+        - Even small differences in spillover share indicate where neighbor
+          effects matter more or less for pricing
+        - Areas with higher share are more sensitive to neighborhood changes
         - Policy implications: regulating one listing type affects the whole area
         """)

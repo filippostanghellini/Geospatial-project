@@ -12,7 +12,9 @@ cd "$PROJECT_ROOT"
 
 if [ ! -f "data/processed/model_sample.parquet" ]; then
     echo "ERROR: model_sample.parquet not found."
-    echo "Run the pipeline notebook first: jupyter execute notebooks/01_data_pipeline.ipynb"
+    echo "Run the data pipeline notebook AND the OLS script first:"
+    echo "  jupyter execute notebooks/01_data_pipeline.ipynb --inplace"
+    echo "  python scripts/03_ols_price_analysis.py"
     exit 1
 fi
 
