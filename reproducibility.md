@@ -4,7 +4,7 @@
 
 - Python 3.12
 - Conda environment specified in `environment/environment.yml`
-- Key packages: geopandas, libpysal, esda, spreg, statsmodels, pyarrow
+- Key packages: geopandas, libpysal, esda, spreg, statsmodels, scipy, pyarrow, contextily, streamlit, folium
 
 ## Data
 
@@ -42,23 +42,26 @@
 | Stage | Description |
 |---|---|
 | 0 | Raw listings from Inside Airbnb |
-| 1 | Price parsing and validation |
+| 1 | Price parsing and validation (drop outliers outside [10, 10000] EUR) |
 | 2 | Winsorization (0.5%-99.5%) |
-| 3 | Complete covariates (dropna) |
+| 3 | NaN imputation (≥99.9% NaN → drop column; ≥10% → 0; <10% → median) |
+| 4 | Drop rows with NaN in log_price/accommodates/minimum_nights |
+
+**Note:** The NaN imputation (Stage 3) is performed in `src/prep.py:build_model_df()` before model estimation, ensuring the same design matrix X is used consistently across OLS, Moran's I, LM tests, LISA, SAR, SEM, and SDM.
 
 ## Pipeline Order
 
 1. `notebooks/01_data_pipeline.ipynb` (ETL)
 2. `scripts/01_verify_spatial_data.py` (verification)
 3. `scripts/02_make_static_map_overview.py` (maps)
-4. `scripts/03_ols_price_analysis.py` (OLS models)
+4. `scripts/03_ols_price_analysis.py` (OLS models, NaN imputation, Model A/B)
 5. `scripts/04_spatial_autocorr_morans_i.py` (Moran's I + kNN sensitivity k=4,8,12)
-6. `scripts/05_lm_diagnostic_tests.py` (LM diagnostics)
+6. `scripts/05_lm_diagnostic_tests.py` (LM diagnostics via `spreg.OLS` with correct ABFY trace)
 7. `scripts/06_lisa_cluster_analysis.py` (LISA cluster maps + Moran scatterplot)
-8. `scripts/07_spatial_models_sar_sem.py` (SAR/SEM)
-9. `scripts/07b_extract_residuals.py` (residuals)
+8. `scripts/07_spatial_models_sar_sem.py` (SAR via `GM_Lag`, SEM via `GM_Error_Het`; Moran's I on SEM filtered residual `e_filtered`)
+9. `scripts/07b_extract_residuals.py` (residuals loaded from CSV, no re-estimation)
 10. `scripts/08_prepare_map_layers.py` (map layers)
-11. `scripts/09_compute_spatial_effects.py` (spatial effects)
+11. `scripts/09_compute_spatial_effects.py` (SAR + SDM effects, Monte Carlo trace, Wald tests)
 
 ## Random Seed
 
