@@ -18,7 +18,6 @@ from src.prep import get_y_X
 from src.io import save_csv
 
 def _extract_rho(model):
-    """Robustly extract rho from a spreg model."""
     if hasattr(model, 'rho') and model.rho is not None:
         arr = np.asarray(model.rho).flatten()
         return float(arr[0]) if arr.size else float('nan')
@@ -26,14 +25,6 @@ def _extract_rho(model):
     return float(betas[-1])
 
 def _extract_lambda(model):
-    """Extract lambda from a GM_Error(_Het) model.
-
-    GM_Error/GM_Error_Het do NOT expose `lam`/`lambda_` attributes; lambda is
-    stored as the last entry of `betas`. The previous version of this script
-    used getattr(model_sem, 'lam', getattr(..., 'lambda_', None)) which always
-    returned None and printed 'lambda: N/A', and the reported lambda=0.913 was
-    not reproducible from the code.
-    """
     betas = np.asarray(model.betas).flatten()
     return float(betas[-1])
 
@@ -77,8 +68,6 @@ def main():
 
     print("\n--- SEM Model (Spatial Error, GMM, heteroskedastic-robust) ---")
     try:
-        # GM_Error_Het for heteroskedastic-robust GMM, consistent with SAR's robust='white'.
-        # The previous version used GM_Error (homoskedastic), an asymmetric choice.
         model_sem = GM_Error_Het(y, X, w=w, name_y='log_price', name_x=X_cols)
         lam_val = _extract_lambda(model_sem)
         print(f"  Pseudo R-squared: {model_sem.pr2:.4f}")
@@ -94,8 +83,6 @@ def main():
     print(f"  OLS residuals: I={moran_ols.I:.4f}, p={moran_ols.p_sim:.4e}")
 
     if model_sar:
-        # For SAR, u = y - rho*Wy - X*beta IS the clean innovation epsilon,
-        # so Moran(u) is the correct test for residual autocorrelation.
         sar_resid = model_sar.u.flatten()
         moran_sar = Moran(sar_resid, w)
         print(f"  SAR residuals (u): I={moran_sar.I:.4f}, p={moran_sar.p_sim:.4e}")
@@ -104,13 +91,6 @@ def main():
         moran_sar = None
 
     if model_sem:
-        # For SEM, u = lambda*W*u + epsilon, so the raw residual u is
-        # autocorrelated BY CONSTRUCTION. The correct residual to test is
-        # e_filtered = (I - lambda*W)*u, which recovers the innovation epsilon.
-        # The previous version computed Moran(model_sem.u), which is always
-        # autocorrelated by construction and created the false 'SEM paradox'
-        # (SEM apparently not removing autocorrelation). On e_filtered, SEM
-        # correctly removes the spatial autocorrelation.
         sem_resid_raw = model_sem.u.flatten()
         sem_resid_filtered = model_sem.e_filtered.flatten()
         moran_sem_raw = Moran(sem_resid_raw, w)
@@ -178,3 +158,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#TODO: report check

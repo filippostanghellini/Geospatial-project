@@ -115,7 +115,6 @@ if view_mode == "Residual Map":
         max_value=int(merged['accommodates'].max()),
         value=(int(merged['accommodates'].min()), int(merged['accommodates'].max()))
     )
-    # WM-8: neighbourhood and CBD distance filters
     if 'neighbourhood_cleansed' in merged.columns:
         neighs = sorted(merged['neighbourhood_cleansed'].dropna().unique())
         selected_neighs = st.sidebar.multiselect("Neighbourhood", neighs, default=[])
@@ -184,7 +183,6 @@ def get_residual_color(val):
 
 
 def _get_neigh_name(row, columns):
-    """Extract neighbourhood name from a GeoDataFrame row, checking common column names."""
     for col in ['neighbourhood', 'name', 'neighbourhood_cleansed', 'neighbourhood_group']:
         if col in columns and pd.notna(row.get(col)) and str(row[col]).strip():
             return str(row[col])
@@ -310,7 +308,6 @@ if view_mode == "Residual Map":
 elif view_mode == "Spillover Analysis":
     m = folium.Map(location=[CBD_LAT, CBD_LON], zoom_start=12, tiles='CartoDB positron')
 
-    # Defaults in case spillover_neigh is None (used by Interpretation section below)
     shares_all = pd.Series(dtype=float)
     s_min, s_max = 0.0, 1.0
 
@@ -318,18 +315,13 @@ elif view_mode == "Spillover Analysis":
         share_col_map = 'sar_share' if 'sar_share' in spillover_neigh.columns else 'sdm_share'
         shares_all = spillover_neigh[share_col_map].dropna()
 
-        # Data-driven color bins: the SAR spillover share is nearly constant
-        # (mean ~17.4%, std ~0.6%) because it is mathematically constrained by
-        # the single ρ parameter. Fixed bins (10-30%) made the map appear
-        # uniformly light green. We compute bins from the actual data range
-        # so the map shows meaningful relative variation.
         if len(shares_all) > 0:
             s_min = float(shares_all.min())
             s_max = float(shares_all.max())
         else:
             s_min, s_max = 0.0, 1.0
 
-        # 7 color steps from light to dark green, evenly spaced over [s_min, s_max]
+        # 7 color steps from light to dark green
         green_palette = ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45']
         n_colors = len(green_palette)
 
@@ -338,7 +330,6 @@ elif view_mode == "Spillover Analysis":
                 return '#e0e0e0'
             if s_max == s_min:
                 return green_palette[n_colors // 2]
-            # Normalize val to [0, 1] over the actual data range
             t = (val - s_min) / (s_max - s_min)
             t = max(0.0, min(1.0, t))
             idx = min(int(t * n_colors), n_colors - 1)

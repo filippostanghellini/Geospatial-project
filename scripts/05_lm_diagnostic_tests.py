@@ -39,10 +39,6 @@ def main():
     print(f"Weights: N={w.n}, k=8, nnz={w.sparse.nnz}")
 
     # spreg.OLS computes LM diagnostics using the correct ABFY (1996) trace
-    # T = tr((W'+W)W) = tr(W'W) + tr(W^2), which the previous manual
-    # implementation omitted (it used only tr(W'W)), inflating 3/4 statistics
-    # and flipping the SAR-vs-SEM selection.
-    # spreg exposes the diagnostics as (statistic, p-value) tuples.
     model_spreg = SpregOLS(y, X, w=w, spat_diag=True, moran=True,
                            name_y='log_price', name_x=X_cols)
 
@@ -81,3 +77,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#TODO: report check

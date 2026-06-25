@@ -19,9 +19,6 @@ from src.io import save_csv, save_geojson
 
 
 def mc_traces(W, rho, n_mc=30, seed=42):
-    """Monte Carlo trace estimation for R1 = tr((I-ρW)⁻¹) and R2 = tr(W(I-ρW)⁻¹).
-    Uses Hutchinson's estimator with Rademacher random vectors.
-    Returns (avg_direct_multiplier, avg_W_multiplier)."""
     rng = np.random.RandomState(seed)
     n = W.shape[0]
     A = (sparse_eye(n) - rho * W).tocsc()
@@ -39,13 +36,6 @@ def mc_traces(W, rho, n_mc=30, seed=42):
 
 
 def compute_sdm_impacts(W, rho, betas_X, betas_WX, var_names):
-    """Decompose SDM coefficients into direct, indirect, total effects.
-    SDM: y = ρWy + Xβ + WXθ + ε
-    S_k(W) = (I-ρW)⁻¹(β_k·I + θ_k·W)
-    Direct_k  = (1/N)·[β_k·tr((I-ρW)⁻¹) + θ_k·tr(W(I-ρW)⁻¹)]
-    Total_k   = (β_k + θ_k) / (1-ρ)   [exact for row-standardized W]
-    Indirect  = Total - Direct
-    """
     avg_R1, avg_R2 = mc_traces(W, rho, n_mc=200, seed=RANDOM_SEED)
     total_mult = 1.0 / (1.0 - rho)
 
@@ -68,7 +58,6 @@ def compute_sdm_impacts(W, rho, betas_X, betas_WX, var_names):
 
 
 def compute_sar_impacts(W, rho, betas, var_names):
-    """SAR: indirect/direct ratio is constrained (same for all variables)."""
     avg_R1, _ = mc_traces(W, rho, n_mc=200, seed=RANDOM_SEED)
     total_mult = 1.0 / (1.0 - rho)
 
@@ -90,14 +79,6 @@ def compute_sar_impacts(W, rho, betas, var_names):
 
 
 def wald_test_sdm_restrictions(model_sdm, k, alpha=0.05):
-    """Wald test for SDM nesting restrictions (Elhorst 2010, 2014).
-
-    H0_A: θ = 0   → SDM reduces to SAR
-    H0_B: θ + ρ·β = 0  → SDM reduces to SEM (common factor restriction)
-
-    Uses the VC matrix from GM_Combo (vm=True required).
-    Returns dict with test statistics, p-values, and decision.
-    """
     rho = float(model_sdm.rho.flatten()[0])
     betas_all = model_sdm.betas.flatten()
     n_total = len(betas_all)
